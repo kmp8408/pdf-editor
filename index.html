@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF書き込みくん (ver7.0.4)</title>
+  <title>PDF書き込みくん (ver7.1.0)</title>
   <!-- PDF描画ライブラリ (PDF.js & pdf-lib) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -35,7 +35,7 @@
       padding: 8px 16px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      justify-content: flex-start;
       flex-wrap: wrap;
       gap: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
@@ -46,6 +46,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-shrink: 0;
     }
 
     /* アプリ名バッジ */
@@ -55,6 +56,7 @@
       gap: 6px;
       padding-right: 8px;
       border-right: 1px solid var(--border);
+      flex-shrink: 0;
     }
     .app-title {
       font-size: 0.95rem;
@@ -83,6 +85,9 @@
       align-items: center;
       gap: 4px;
       transition: all 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+      touch-action: manipulation;
     }
     button:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -112,6 +117,7 @@
       padding: 2px 4px;
       border-radius: 6px;
       border: 1px solid var(--border);
+      flex-shrink: 0;
     }
     .btn-zoom {
       padding: 4px 8px;
@@ -130,6 +136,7 @@
       cursor: pointer;
       border-radius: 4px;
       transition: background 0.15s;
+      touch-action: manipulation;
     }
     .zoom-display:hover {
       background: #e5e7eb;
@@ -144,6 +151,7 @@
       padding: 3px 6px;
       border-radius: 6px;
       border: 1px solid var(--border);
+      flex-shrink: 0;
     }
     .text-history-group select {
       border: 1px solid var(--border);
@@ -153,7 +161,7 @@
       outline: none;
       background: #fff;
       cursor: pointer;
-      max-width: 170px;
+      max-width: 140px;
       color: #1f2937;
       font-weight: 600;
     }
@@ -176,6 +184,9 @@
       padding: 5px 8px;
       border-radius: 6px;
       border: 1px solid var(--border);
+      flex-shrink: 0;
+      white-space: nowrap;
+      touch-action: manipulation;
     }
     .fill-toggle input { cursor: pointer; }
 
@@ -190,6 +201,7 @@
       border: 1px solid var(--border);
       font-size: 0.85rem;
       font-weight: 600;
+      flex-shrink: 0;
     }
     .select-group select {
       border: 1px solid var(--border);
@@ -208,6 +220,7 @@
       align-items: center;
       gap: 6px;
       padding: 0 4px;
+      flex-shrink: 0;
     }
     .color-dot {
       width: 24px;
@@ -216,6 +229,7 @@
       cursor: pointer;
       border: 2px solid transparent;
       transition: transform 0.1s;
+      touch-action: manipulation;
     }
     .color-dot:hover { transform: scale(1.15); }
     .color-dot.selected { border-color: #1f2937; transform: scale(1.15); }
@@ -227,6 +241,7 @@
       gap: 6px;
       font-size: 0.88rem;
       font-weight: 600;
+      flex-shrink: 0;
     }
 
     /* メイン作業エリア */
@@ -235,9 +250,10 @@
       overflow: auto;
       padding: 20px;
       position: relative;
+      -webkit-overflow-scrolling: touch;
     }
 
-    /* PDFステージコンテナ */
+    /* PDFステージコンテナ（タッチスクロールの干渉を防止） */
     .pdf-stage-container {
       position: relative;
       background: #fff;
@@ -245,6 +261,7 @@
       border-radius: 2px;
       display: none;
       margin: 0 auto;
+      touch-action: none;
     }
 
     #pdfCanvas {
@@ -270,6 +287,7 @@
       align-items: center;
       justify-content: center;
       transition: box-shadow 0.1s, opacity 0.1s;
+      touch-action: none;
     }
 
     .anno-item.selected {
@@ -278,7 +296,7 @@
       z-index: 10;
     }
 
-    /* ドラッグ中：モーダル風の浮遊演出 */
+    /* ドラッグ中：浮遊演出 */
     .anno-item.is-dragging {
       cursor: grabbing !important;
       opacity: 0.72 !important;
@@ -345,21 +363,23 @@
       pointer-events: none;
     }
 
-    /* リサイズハンドル各種 */
+    /* リサイズハンドル各種（指で掴みやすいサイズに拡大） */
     .handle {
       position: absolute;
-      width: 10px;
-      height: 10px;
+      width: 16px;
+      height: 16px;
       background: #2563eb;
-      border: 1px solid #fff;
+      border: 2px solid #fff;
       border-radius: 50%;
       display: none;
       z-index: 15;
+      touch-action: none;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
     }
     .anno-item.selected .handle {
       display: block;
     }
-    .handle-se { right: -6px; bottom: -6px; cursor: se-resize; }
+    .handle-se { right: -8px; bottom: -8px; cursor: se-resize; }
 
     /* 直線用SVG・ハンドル */
     .line-svg-container {
@@ -376,6 +396,7 @@
       pointer-events: stroke;
       cursor: grab;
       stroke: transparent;
+      touch-action: none;
     }
     .line-hit-area:active {
       cursor: grabbing;
@@ -385,11 +406,11 @@
       stroke-linecap: round;
     }
 
-    /* 直線の始点・終点丸ハンドル */
+    /* 直線の始点・終点丸ハンドル（指先操作向け） */
     .line-handle {
       position: absolute;
-      width: 12px;
-      height: 12px;
+      width: 18px;
+      height: 18px;
       background: #2563eb;
       border: 2px solid #fff;
       border-radius: 50%;
@@ -398,7 +419,8 @@
       transform: translate(-50%, -50%);
       display: block;
       z-index: 20;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.35);
+      touch-action: none;
     }
 
     /* 初期案内表示 */
@@ -411,16 +433,48 @@
       min-height: 400px;
       color: #6b7280;
       gap: 12px;
+      text-align: center;
+    }
+
+    /* 📱 スマホ用レイアウト最適化 (幅768px以下) */
+    @media (max-width: 768px) {
+      header {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding: 6px 10px;
+        gap: 8px;
+      }
+      header::-webkit-scrollbar {
+        height: 4px;
+      }
+      header::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 2px;
+      }
+
+      .app-brand {
+        display: none; /* 作業幅を確保するためロゴを非表示 */
+      }
+
+      main {
+        padding: 8px;
+      }
+
+      button {
+        padding: 6px 10px;
+        font-size: 0.82rem;
+      }
     }
   </style>
 </head>
 <body>
 
 <header>
-  <!-- アプリ名とバージョン (ver7.0.4) -->
+  <!-- アプリ名とバージョン (ver7.1.0) -->
   <div class="app-brand">
     <span class="app-title">PDF書き込みくん</span>
-    <span class="app-version">ver7.0.4</span>
+    <span class="app-version">ver7.1.0</span>
   </div>
 
   <!-- ファイル操作 ＆ マニュアル -->
@@ -456,7 +510,7 @@
 
   <!-- 描画・配置ツール群 -->
   <div class="tool-group">
-    <button id="addTextBtn" disabled title="クリックした場所に文字枠を設置">🔤 文字</button>
+    <button id="addTextBtn" disabled title="タップ・クリックした場所に文字枠を設置">🔤 文字</button>
     <div class="text-history-group" title="過去に使った文字列から選んで挿入">
       <span style="font-size:0.75rem; color:#6b7280;">履歴:</span>
       <select id="textHistorySelect" disabled>
@@ -464,9 +518,9 @@
       </select>
       <button id="deleteHistoryBtn" class="btn-delete-history" title="選択中の履歴項目を削除" disabled>✖ 削除</button>
     </div>
-    <button id="addRectBtn" disabled title="クリックした場所に四角枠を設置（ダブルクリックで90度回転）">◻️ 四角枠</button>
-    <button id="addArrowBtn" disabled title="クリックした場所に矢印枠を設置（ダブルクリックで90度回転）">➡️ 矢印枠</button>
-    <button id="addLineBtn" disabled title="ドラッグで直線を引く（Shiftで垂直・水平 / ダブルクリックで90度回転）">📏 直線</button>
+    <button id="addRectBtn" disabled title="タップ・クリックした場所に四角枠を設置（ダブルタップで90度回転）">◻️ 四角枠</button>
+    <button id="addArrowBtn" disabled title="タップ・クリックした場所に矢印枠を設置（ダブルタップで90度回転）">➡️ 矢印枠</button>
+    <button id="addLineBtn" disabled title="スワイプで直線を引く（Shiftで垂直・水平 / ダブルタップで90度回転）">📏 直線</button>
     <label class="fill-toggle" title="四角枠・矢印枠の中を塗りつぶします">
       <input type="checkbox" id="fillCheckbox">
       <span>塗りつぶし</span>
@@ -528,7 +582,7 @@
   <div class="empty-placeholder" id="emptyPlaceholder">
     <div style="font-size: 3rem;">📄</div>
     <div style="font-size: 1.1rem; font-weight: 600;">上部の「📂 PDFを開く」からPDFファイルを選択してください</div>
-    <div style="font-size: 0.85rem; color: #9ca3af;">※拡大縮小（ズーム）、直接文字入力、Enter改行、クリック配置に対応しています。</div>
+    <div style="font-size: 0.85rem; color: #9ca3af;">※スマホのタップ・スワイプ操作、拡大縮小（ズーム）、直接文字入力に対応しています。</div>
   </div>
 
   <div class="pdf-stage-container" id="stageContainer">
@@ -924,8 +978,8 @@
     }
   }
 
-  // --- ステージクリック：配置モード実行または直線描画 ---
-  stageContainer.addEventListener("mousedown", (e) => {
+  // --- ステージ操作：タップ・クリックで配置または直線描画 (Pointer Events) ---
+  stageContainer.addEventListener("pointerdown", (e) => {
     if (!currentTool) return;
     if (e.target.closest("button") || e.target.closest("select") || e.target.closest("input")) return;
 
@@ -952,7 +1006,7 @@
       recordHistory();
       annotations[currentPage].push(newLine);
 
-      function onMouseMove(ev) {
+      function onPointerMove(ev) {
         let curX = ev.clientX - rect.left;
         let curY = ev.clientY - rect.top;
 
@@ -968,15 +1022,15 @@
         renderAnnotations();
       }
 
-      function onMouseUp() {
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
+      function onPointerUp() {
+        document.removeEventListener("pointermove", onPointerMove);
+        document.removeEventListener("pointerup", onPointerUp);
         setTool(null);
         selectItem(id, true);
       }
 
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
+      document.addEventListener("pointermove", onPointerMove);
+      document.addEventListener("pointerup", onPointerUp);
       return;
     }
 
@@ -1056,7 +1110,7 @@
 
         const handleSE = document.createElement("div");
         handleSE.className = "handle handle-se";
-        handleSE.addEventListener("mousedown", (e) => startResize(e, item));
+        handleSE.addEventListener("pointerdown", (e) => startResize(e, item));
         el.appendChild(handleSE);
 
       // 矢印枠
@@ -1073,7 +1127,7 @@
 
         const handleSE = document.createElement("div");
         handleSE.className = "handle handle-se";
-        handleSE.addEventListener("mousedown", (e) => startResize(e, item));
+        handleSE.addEventListener("pointerdown", (e) => startResize(e, item));
         el.appendChild(handleSE);
 
       // 文字枠
@@ -1115,12 +1169,12 @@
 
         const handleSE = document.createElement("div");
         handleSE.className = "handle handle-se";
-        handleSE.addEventListener("mousedown", (e) => startResize(e, item));
+        handleSE.addEventListener("pointerdown", (e) => startResize(e, item));
         el.appendChild(handleSE);
       }
 
-      // クリック、ダブルクリック、ドラッグ開始
-      el.addEventListener("mousedown", (e) => {
+      // タップ、ダブルタップ、ドラッグ開始
+      el.addEventListener("pointerdown", (e) => {
         if (currentTool) return;
         if (e.target.classList.contains("handle")) return;
 
@@ -1163,7 +1217,7 @@
     document.getElementById("deleteBtn").disabled = !selectedItemId;
   }
 
-  // --- 直線描画処理（両端ハンドルのみ） ---
+  // --- 直線描画処理（両端ハンドル） ---
   function renderLineItem(item) {
     const isSelected = (item.id === selectedItemId);
     const lWidth = item.lineWidth || (4 * currentScale);
@@ -1196,7 +1250,7 @@
     hitLine.setAttribute("y1", item.y1);
     hitLine.setAttribute("x2", item.x2);
     hitLine.setAttribute("y2", item.y2);
-    hitLine.setAttribute("stroke-width", Math.max(22, lWidth + 14));
+    hitLine.setAttribute("stroke-width", Math.max(26, lWidth + 18));
     hitLine.classList.add("line-hit-area");
 
     const visLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -1216,7 +1270,7 @@
     g.appendChild(hitLine);
     g.appendChild(visLine);
 
-    hitLine.addEventListener("mousedown", (e) => {
+    hitLine.addEventListener("pointerdown", (e) => {
       if (currentTool) return;
       e.stopPropagation();
 
@@ -1246,13 +1300,12 @@
     lineSvgLayer.appendChild(g);
 
     if (isSelected) {
-      // 🌟 直線の始点・終点丸ハンドルのみ配置
       const h1 = document.createElement("div");
       h1.className = "line-handle";
       h1.style.left = `${item.x1}px`;
       h1.style.top = `${item.y1}px`;
       h1.title = "端点の位置を調整（Shiftで水平・垂直）";
-      h1.addEventListener("mousedown", (e) => startLinePointDrag(e, item, 1));
+      h1.addEventListener("pointerdown", (e) => startLinePointDrag(e, item, 1));
       stageContainer.appendChild(h1);
 
       const h2 = document.createElement("div");
@@ -1260,7 +1313,7 @@
       h2.style.left = `${item.x2}px`;
       h2.style.top = `${item.y2}px`;
       h2.title = "端点の位置を調整（Shiftで水平・垂直）";
-      h2.addEventListener("mousedown", (e) => startLinePointDrag(e, item, 2));
+      h2.addEventListener("pointerdown", (e) => startLinePointDrag(e, item, 2));
       stageContainer.appendChild(h2);
     }
   }
@@ -1273,7 +1326,7 @@
     let hasMoved = false;
     const snapshotBeforeMove = JSON.stringify(annotations);
 
-    function onMouseMove(ev) {
+    function onPointerMove(ev) {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
 
@@ -1292,9 +1345,9 @@
       }
     }
 
-    function onMouseUp(ev) {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+    function onPointerUp() {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
 
       if (hasMoved) {
         undoStack.push(snapshotBeforeMove);
@@ -1305,8 +1358,8 @@
       }
     }
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
   }
 
   function startLinePointDrag(e, item, pointIndex) {
@@ -1316,7 +1369,7 @@
     const fixedY = (pointIndex === 1) ? item.y2 : item.y1;
     const snapshotBeforeResize = JSON.stringify(annotations);
 
-    function onMouseMove(ev) {
+    function onPointerMove(ev) {
       let curX = ev.clientX - rect.left;
       let curY = ev.clientY - rect.top;
 
@@ -1332,17 +1385,17 @@
       renderAnnotations();
     }
 
-    function onMouseUp() {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+    function onPointerUp() {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
       undoStack.push(snapshotBeforeResize);
       if (undoStack.length > MAX_HISTORY) undoStack.shift();
       redoStack = [];
       updateHistoryUI();
     }
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
   }
 
   // アイテム選択処理
@@ -1390,7 +1443,7 @@
     }
   }
 
-  // モーダル風ドラッグ移動
+  // ドラッグ移動 (Pointer Events)
   function startDrag(e, item, el) {
     const editor = el.querySelector(".text-editor");
     if (editor && document.activeElement === editor) return;
@@ -1402,7 +1455,7 @@
     let hasMoved = false;
     const snapshotBeforeMove = JSON.stringify(annotations);
 
-    function onMouseMove(ev) {
+    function onPointerMove(ev) {
       const dx = ev.clientX - startX;
       const dy = ev.clientY - startY;
 
@@ -1419,9 +1472,9 @@
       }
     }
 
-    function onMouseUp() {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+    function onPointerUp() {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
 
       if (hasMoved) {
         el.classList.remove("is-dragging");
@@ -1433,11 +1486,11 @@
       }
     }
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
   }
 
-  // リサイズ操作（四角・矢印・文字）
+  // リサイズ操作 (Pointer Events)
   function startResize(e, item) {
     e.stopPropagation();
     let startX = e.clientX;
@@ -1446,7 +1499,7 @@
     let origH = item.h;
     const snapshotBeforeResize = JSON.stringify(annotations);
 
-    function onMouseMove(ev) {
+    function onPointerMove(ev) {
       item.w = Math.max(30 * currentScale, origW + (ev.clientX - startX));
       if (item.type !== "text") {
         item.h = Math.max(20 * currentScale, origH + (ev.clientY - startY));
@@ -1454,9 +1507,9 @@
       renderAnnotations();
     }
 
-    function onMouseUp() {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
+    function onPointerUp() {
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
 
       if (item.w !== origW || (item.type !== "text" && item.h !== origH)) {
         undoStack.push(snapshotBeforeResize);
@@ -1466,12 +1519,12 @@
       }
     }
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
   }
 
-  // 背景クリックで選択解除
-  mainContainer.addEventListener("mousedown", (e) => {
+  // 背景タップで選択解除
+  mainContainer.addEventListener("pointerdown", (e) => {
     if (currentTool) return;
     if (e.target === mainContainer || e.target === canvas || e.target === annoLayer) {
       selectedItemId = null;
