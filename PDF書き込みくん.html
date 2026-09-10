@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF書き込みくん (ver7.0.1)</title>
+  <!-- PDF描画ライブラリ (PDF.js & pdf-lib) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --bg: #f3f4f6;
+      --card-bg: #ffffff;
+      --border: #d1d5db;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg);
+      color: #1f2937;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* 上部ツールバー */
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      z-index: 20;
+    }
+
+    .tool-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* アプリ名バッジ */
+    .app-brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-right: 8px;
+      border-right: 1px solid var(--border);
+    }
+    .app-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: 0.02em;
+    }
+    .app-version {
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: #e5e7eb;
+      color: #4b5563;
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    button {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s;
+    }
+    button:hover:not(:disabled) { background: #f9fafb; border-color: #9ca3af; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.active { background: #eff6ff; border-color: var(--primary); color: var(--primary); }
+    button.btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    button.btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+    button.btn-danger { color: #dc2626; border-color: #fca5a5; }
+    button.btn-danger:hover:not(:disabled) { background: #fef2f2; }
+
+    /* UNDO / REDO ボタン */
+    .btn-icon-history {
+      padding: 6px 10px;
+      color: #374151;
+    }
+    .btn-icon-history svg {
+      width: 17px;
+      height: 17px;
+      stroke-width: 2.3;
+    }
+
+    /* ズーム（拡大縮小）コントロール */
+    .zoom-group {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: #f9fafb;
+      padding: 2px 4px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .btn-zoom {
+      padding: 4px 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      min-width: 28px;
+      justify-content: center;
+    }
+    .zoom-display {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #374151;
+      padding: 2px 6px;
+      min-width: 48px;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+    .zoom-display:hover {
+      background: #e5e7eb;
+    }
+
+    /* 文字履歴選択＆削除グループ */
+    .text-history-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #f9fafb;
+      padding: 3px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .text-history-group select {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 6px;
+      font-size: 0.83rem;
+      outline: none;
+      background: #fff;
+      cursor: pointer;
+      max-width: 170px;
+      color: #1f2937;
+      font-weight: 600;
+    }
+    .btn-delete-history {
+      padding: 3px 8px;
+      font-size: 0.75rem;
+      color: #dc2626;
+      border-color: #fca5a5;
+    }
+
+    /* 塗りつぶしトグル */
+    .fill-toggle {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: #f9fafb;
+      padding: 5px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .fill-toggle input { cursor: pointer; }
+
+    /* 設定セレクトボックス */
+    .select-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #f9fafb;
+      padding: 4px 6px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .select-group select {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      outline: none;
+      cursor: pointer;
+      background: #fff;
+    }
+
+    /* カラーピッカー（6色） */
+    .color-picker {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 4px;
+    }
+    .color-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.1s;
+    }
+    .color-dot:hover { transform: scale(1.15); }
+    .color-dot.selected { border-color: #1f2937; transform: scale(1.15); }
+
+    /* ページめくり */
+    .page-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+
+    /* 🌟 メイン作業エリア（スクロール時の左端切れバグを完全防止） */
+    main {
+      flex: 1;
+      overflow: auto;
+      padding: 20px;
+      position: relative;
+    }
+
+    /* 🌟 PDFステージコンテナ（標準時は中央、拡大時は左から正しくスクロール可能） */
+    .pdf-stage-container {
+      position: relative;
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-radius: 2px;
+      display: none;
+      margin: 0 auto;
+    }
+
+    #pdfCanvas {
+      display: block;
+    }
+
+    .annotation-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* 配置アイテム共通 */
+    .anno-item {
+      position: absolute;
+      pointer-events: auto;
+      cursor: grab;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: box-shadow 0.1s, opacity 0.1s;
+    }
+
+    .anno-item.selected {
+      outline: 2px dashed #2563eb !important;
+      outline-offset: 3px;
+      z-index: 10;
+    }
+
+    /* ドラッグ中：モーダル風の浮遊演出 */
+    .anno-item.is-dragging {
+      cursor: grabbing !important;
+      opacity: 0.72 !important;
+      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.3), 0 0 0 2px #2563eb !important;
+      z-index: 1000 !important;
+    }
+
+    /* 白色オブジェクトの編集用ガイド点線 */
+    .anno-item.is-white {
+      outline: 1.5px dashed #9ca3af;
+      outline-offset: 1px;
+    }
+
+    /* 四角枠 */
+    .anno-rect {
+      background: transparent;
+    }
+
+    /* 矢印枠 (SVG) */
+    .anno-arrow svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      display: block;
+      pointer-events: none;
+    }
+
+    /* 文字枠外枠コンテナ */
+    .anno-item.anno-text-container {
+      display: block !important;
+      height: auto !important;
+      min-height: 24px;
+      min-width: 40px;
+      background: transparent !important;
+      padding: 0 !important;
+      cursor: move;
+    }
+
+    /* 内部テキストエディタ */
+    .text-editor {
+      width: 100%;
+      height: 100%;
+      min-height: 24px;
+      min-width: 40px;
+      padding: 4px 6px;
+      box-sizing: border-box;
+      white-space: pre-wrap !important;
+      word-break: break-word;
+      line-height: 1.25;
+      outline: none;
+      user-select: text;
+      cursor: text;
+      text-align: left;
+    }
+
+    .text-editor:focus {
+      outline: 1px dashed var(--primary);
+    }
+
+    .text-editor:empty::before {
+      content: "文字を入力";
+      color: #9ca3af;
+      font-weight: normal;
+      pointer-events: none;
+    }
+
+    /* リサイズハンドル各種 */
+    .handle {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #2563eb;
+      border: 1px solid #fff;
+      border-radius: 50%;
+      display: none;
+      z-index: 15;
+    }
+    .anno-item.selected .handle {
+      display: block;
+    }
+    .handle-se { right: -6px; bottom: -6px; cursor: se-resize; }
+
+    /* 直線用SVG・ハンドル */
+    .line-svg-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+      z-index: 8;
+    }
+    .line-hit-area {
+      pointer-events: stroke;
+      cursor: grab;
+      stroke: transparent;
+    }
+    .line-hit-area:active {
+      cursor: grabbing;
+    }
+    .line-visible-path {
+      pointer-events: none;
+      stroke-linecap: round;
+    }
+    .line-handle {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: #2563eb;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      pointer-events: auto;
+      cursor: crosshair;
+      transform: translate(-50%, -50%);
+      display: none;
+      z-index: 15;
+    }
+    .line-selected .line-handle {
+      display: block;
+    }
+
+    /* 初期案内表示 */
+    .empty-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      min-height: 400px;
+      color: #6b7280;
+      gap: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <!-- アプリ名とバージョン (ver7.0.1) -->
+  <div class="app-brand">
+    <span class="app-title">PDF書き込みくん</span>
+    <span class="app-version">ver7.0.1</span>
+  </div>
+
+  <!-- ファイル操作 -->
+  <div class="tool-group">
+    <button id="openPdfBtn" class="btn-primary">📂 PDFを開く</button>
+    <input type="file" id="pdfFileInput" accept="application/pdf" style="display: none;">
+    <button id="savePdfBtn" class="btn-primary" style="background:#059669; border-color:#059669;" disabled>💾 PDFを保存</button>
+  </div>
+
+  <!-- UNDO & REDO -->
+  <div class="tool-group">
+    <button id="undoBtn" class="btn-icon-history" title="元に戻す (Ctrl+Z)" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 7v6h6"/>
+        <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+      </svg>
+    </button>
+    <button id="redoBtn" class="btn-icon-history" title="やり直す (Ctrl+Y)" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 7v6h-6"/>
+        <path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ズーム（拡大縮小）表示コントロール -->
+  <div class="tool-group zoom-group" title="PDF表示倍率の変更（中央クリックで100%リセット）">
+    <button id="zoomOutBtn" class="btn-zoom" disabled title="縮小">➖</button>
+    <span id="zoomDisplay" class="zoom-display">100%</span>
+    <button id="zoomInBtn" class="btn-zoom" disabled title="拡大">➕</button>
+  </div>
+
+  <!-- 描画・配置ツール群 -->
+  <div class="tool-group">
+    <button id="addTextBtn" disabled title="クリックした場所に文字枠を設置">🔤 文字</button>
+    <div class="text-history-group" title="過去に使った文字列から選んで挿入">
+      <span style="font-size:0.75rem; color:#6b7280;">履歴:</span>
+      <select id="textHistorySelect" disabled>
+        <!-- 一番上：空欄、中間：ユーザー履歴、一番下：ファイル名 -->
+      </select>
+      <button id="deleteHistoryBtn" class="btn-delete-history" title="選択中の履歴項目を削除" disabled>✖ 削除</button>
+    </div>
+    <button id="addRectBtn" disabled title="クリックした場所に四角枠を設置（ダブルクリックで90度回転）">◻️ 四角枠</button>
+    <button id="addArrowBtn" disabled title="クリックした場所に矢印枠を設置（ダブルクリックで90度回転）">➡️ 矢印枠</button>
+    <button id="addLineBtn" disabled title="ドラッグで直線を引く（Shiftで垂直・水平 / ダブルクリックで90度回転）">📏 直線</button>
+    <label class="fill-toggle" title="四角枠・矢印枠の中を塗りつぶします">
+      <input type="checkbox" id="fillCheckbox">
+      <span>塗りつぶし</span>
+    </label>
+  </div>
+
+  <!-- 線の太さ選択 -->
+  <div class="tool-group">
+    <div class="select-group" title="選択中の図形・直線の線の太さを変更">
+      <span>太さ:</span>
+      <select id="lineWidthSelect" disabled>
+        <option value="2">2px</option>
+        <option value="4" selected>4px</option>
+        <option value="7">7px</option>
+        <option value="12">12px</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- 文字サイズ選択 -->
+  <div class="tool-group">
+    <div class="select-group" title="選択中の文字の大きさを変更">
+      <span>文字:</span>
+      <select id="fontSizeSelect" disabled>
+        <option value="12">12</option>
+        <option value="14">14</option>
+        <option value="16">16</option>
+        <option value="18" selected>18</option>
+        <option value="22">22</option>
+        <option value="26">26</option>
+        <option value="32">32</option>
+        <option value="40">40</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- カラーパレット（6色） -->
+  <div class="tool-group">
+    <div class="color-picker">
+      <div class="color-dot selected" style="background: #ef4444;" data-color="#ef4444" title="赤"></div>
+      <div class="color-dot" style="background: #2563eb;" data-color="#2563eb" title="青"></div>
+      <div class="color-dot" style="background: #1f2937;" data-color="#1f2937" title="黒"></div>
+      <div class="color-dot" style="background: #10b981;" data-color="#10b981" title="緑"></div>
+      <div class="color-dot" style="background: #f59e0b;" data-color="#f59e0b" title="オレンジ"></div>
+      <div class="color-dot" style="background: #ffffff; border: 1px solid #9ca3af;" data-color="#ffffff" title="白（目隠しにも最適）"></div>
+    </div>
+    <button id="deleteBtn" class="btn-danger" title="選択中のオブジェクトを削除" disabled>🗑️ 削除</button>
+  </div>
+
+  <!-- ページ操作 -->
+  <div class="tool-group page-nav">
+    <button id="prevPageBtn" disabled>◀</button>
+    <span id="pageInfo">- / -</span>
+    <button id="nextPageBtn" disabled>▶</button>
+  </div>
+</header>
+
+<main id="mainContainer">
+  <div class="empty-placeholder" id="emptyPlaceholder">
+    <div style="font-size: 3rem;">📄</div>
+    <div style="font-size: 1.1rem; font-weight: 600;">上部の「📂 PDFを開く」からPDFファイルを選択してください</div>
+    <div style="font-size: 0.85rem; color: #9ca3af;">※拡大縮小（ズーム）、直接文字入力、Enter改行、クリック配置に対応しています。</div>
+  </div>
+
+  <div class="pdf-stage-container" id="stageContainer">
+    <canvas id="pdfCanvas"></canvas>
+    <div class="annotation-layer" id="annotationLayer"></div>
+    <svg class="line-svg-container" id="lineSvgLayer"></svg>
+  </div>
+</main>
+
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  let pdfDoc = null;
+  let currentPage = 1;
+  let totalPages = 0;
+  let pdfOriginalBytes = null;
+  let currentFileName = "document";
+
+  const ZOOM_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+  let currentScale = 1.0;
+
+  let currentColor = "#ef4444";
+  let isCurrentFill = false;
+  let currentFontSize = 18;
+  let currentLineWidth = 4;
+  let selectedItemId = null;
+  let currentTool = null;
+
+  let annotations = {};
+
+  const MAX_USER_HISTORY = 15;
+  let userHistoryList = [];
+
+  const MAX_HISTORY = 30;
+  let undoStack = [];
+  let redoStack = [];
+
+  const fileInput = document.getElementById("pdfFileInput");
+  const stageContainer = document.getElementById("stageContainer");
+  const emptyPlaceholder = document.getElementById("emptyPlaceholder");
+  const canvas = document.getElementById("pdfCanvas");
+  const ctx = canvas.getContext("2d");
+  const annoLayer = document.getElementById("annotationLayer");
+  const lineSvgLayer = document.getElementById("lineSvgLayer");
+  const textHistorySelect = document.getElementById("textHistorySelect");
+  const deleteHistoryBtn = document.getElementById("deleteHistoryBtn");
+  const addTextBtn = document.getElementById("addTextBtn");
+  const addRectBtn = document.getElementById("addRectBtn");
+  const addArrowBtn = document.getElementById("addArrowBtn");
+  const addLineBtn = document.getElementById("addLineBtn");
+  const fillCheckbox = document.getElementById("fillCheckbox");
+  const fontSizeSelect = document.getElementById("fontSizeSelect");
+  const lineWidthSelect = document.getElementById("lineWidthSelect");
+  const undoBtn = document.getElementById("undoBtn");
+  const redoBtn = document.getElementById("redoBtn");
+  const zoomInBtn = document.getElementById("zoomInBtn");
+  const zoomOutBtn = document.getElementById("zoomOutBtn");
+  const zoomDisplay = document.getElementById("zoomDisplay");
+
+  // --- 履歴記録関数 (Undo/Redo) ---
+  function recordHistory() {
+    undoStack.push(JSON.stringify(annotations));
+    if (undoStack.length > MAX_HISTORY) undoStack.shift();
+    redoStack = [];
+    updateHistoryUI();
+  }
+
+  function updateHistoryUI() {
+    undoBtn.disabled = (undoStack.length === 0);
+    redoBtn.disabled = (redoStack.length === 0);
+  }
+
+  function applyUndo() {
+    if (undoStack.length === 0) return;
+    redoStack.push(JSON.stringify(annotations));
+    const previousState = undoStack.pop();
+    annotations = JSON.parse(previousState);
+    selectedItemId = null;
+    updateHistoryUI();
+    renderAnnotations();
+  }
+
+  function applyRedo() {
+    if (redoStack.length === 0) return;
+    undoStack.push(JSON.stringify(annotations));
+    const nextState = redoStack.pop();
+    annotations = JSON.parse(nextState);
+    selectedItemId = null;
+    updateHistoryUI();
+    renderAnnotations();
+  }
+
+  undoBtn.addEventListener("click", applyUndo);
+  redoBtn.addEventListener("click", applyRedo);
+
+  // キーボードショートカット
+  window.addEventListener("keydown", (e) => {
+    if (document.activeElement && document.activeElement.contentEditable === "true") return;
+    if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+
+    const isCtrl = e.ctrlKey || e.metaKey;
+    if (isCtrl && (e.key === "z" || e.key === "Z")) {
+      e.preventDefault();
+      if (e.shiftKey) applyRedo();
+      else applyUndo();
+    } else if (isCtrl && (e.key === "y" || e.key === "Y")) {
+      e.preventDefault();
+      applyRedo();
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      if (selectedItemId && annotations[currentPage]) {
+        e.preventDefault();
+        deleteSelectedItem();
+      }
+    }
+  });
+
+  // --- ズーム制御処理 ---
+  function updateZoomUI() {
+    zoomDisplay.textContent = `${Math.round(currentScale * 100)}%`;
+    const curIdx = ZOOM_STEPS.indexOf(currentScale);
+    zoomOutBtn.disabled = (curIdx <= 0);
+    zoomInBtn.disabled = (curIdx >= ZOOM_STEPS.length - 1);
+  }
+
+  function applyScaleChange(newScale) {
+    if (newScale === currentScale || !pdfDoc) return;
+    const ratio = newScale / currentScale;
+    currentScale = newScale;
+
+    // 全ページの配置オブジェクトをスケーリング
+    for (const page in annotations) {
+      if (!annotations[page]) continue;
+      annotations[page].forEach(item => scaleItem(item, ratio));
+    }
+
+    // Undo / Redo スタックのデータも整合
+    undoStack = undoStack.map(jsonStr => {
+      try {
+        const data = JSON.parse(jsonStr);
+        for (const page in data) {
+          if (!data[page]) continue;
+          data[page].forEach(item => scaleItem(item, ratio));
+        }
+        return JSON.stringify(data);
+      } catch(e) { return jsonStr; }
+    });
+
+    redoStack = redoStack.map(jsonStr => {
+      try {
+        const data = JSON.parse(jsonStr);
+        for (const page in data) {
+          if (!data[page]) continue;
+          data[page].forEach(item => scaleItem(item, ratio));
+        }
+        return JSON.stringify(data);
+      } catch(e) { return jsonStr; }
+    });
+
+    updateZoomUI();
+    renderPage(currentPage);
+  }
+
+  function scaleItem(item, ratio) {
+    if (item.type === "line") {
+      item.x1 *= ratio;
+      item.y1 *= ratio;
+      item.x2 *= ratio;
+      item.y2 *= ratio;
+      item.lineWidth *= ratio;
+    } else {
+      item.x *= ratio;
+      item.y *= ratio;
+      item.w *= ratio;
+      if (item.h) item.h *= ratio;
+      if (item.fontSize) item.fontSize *= ratio;
+      if (item.lineWidth) item.lineWidth *= ratio;
+    }
+  }
+
+  zoomInBtn.addEventListener("click", () => {
+    const curIdx = ZOOM_STEPS.indexOf(currentScale);
+    if (curIdx < ZOOM_STEPS.length - 1) {
+      applyScaleChange(ZOOM_STEPS[curIdx + 1]);
+    }
+  });
+
+  zoomOutBtn.addEventListener("click", () => {
+    const curIdx = ZOOM_STEPS.indexOf(currentScale);
+    if (curIdx > 0) {
+      applyScaleChange(ZOOM_STEPS[curIdx - 1]);
+    }
+  });
+
+  zoomDisplay.addEventListener("click", () => {
+    applyScaleChange(1.0);
+  });
+
+  // --- 履歴管理 ---
+  function updateTextHistorySelectUI(selectValue = "") {
+    textHistorySelect.innerHTML = "";
+
+    const optEmpty = document.createElement("option");
+    optEmpty.value = "";
+    optEmpty.textContent = "（空欄・新規入力）";
+    textHistorySelect.appendChild(optEmpty);
+
+    userHistoryList.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = item;
+      opt.textContent = item.length > 15 ? item.substring(0, 15) + "…" : item;
+      opt.title = item;
+      textHistorySelect.appendChild(opt);
+    });
+
+    if (currentFileName) {
+      const optFile = document.createElement("option");
+      optFile.value = currentFileName;
+      optFile.textContent = `📁 ${currentFileName.length > 13 ? currentFileName.substring(0, 13) + "…" : currentFileName} (ファイル名)`;
+      optFile.title = currentFileName;
+      textHistorySelect.appendChild(optFile);
+    }
+
+    textHistorySelect.value = selectValue;
+    checkDeleteHistoryBtnState();
+  }
+
+  function pushUserHistory(str) {
+    if (!str || !str.trim()) return;
+    const cleanStr = str.trim();
+
+    if (cleanStr === currentFileName) return;
+
+    userHistoryList = userHistoryList.filter(item => item !== cleanStr);
+    userHistoryList.unshift(cleanStr);
+
+    if (userHistoryList.length > MAX_USER_HISTORY) {
+      userHistoryList.pop();
+    }
+    updateTextHistorySelectUI("");
+  }
+
+  function checkDeleteHistoryBtnState() {
+    const val = textHistorySelect.value;
+    deleteHistoryBtn.disabled = (!val || val === currentFileName);
+  }
+
+  textHistorySelect.addEventListener("change", checkDeleteHistoryBtnState);
+
+  deleteHistoryBtn.addEventListener("click", () => {
+    const target = textHistorySelect.value;
+    if (!target || target === currentFileName) return;
+
+    userHistoryList = userHistoryList.filter(item => item !== target);
+    updateTextHistorySelectUI("");
+  });
+
+  // --- 配置ツール切り替え ---
+  function setTool(tool) {
+    currentTool = tool;
+    addTextBtn.classList.toggle("active", tool === 'text');
+    addRectBtn.classList.toggle("active", tool === 'rect');
+    addArrowBtn.classList.toggle("active", tool === 'arrow');
+    addLineBtn.classList.toggle("active", tool === 'line');
+
+    if (tool) {
+      selectedItemId = null;
+      renderAnnotations();
+      stageContainer.style.cursor = "crosshair";
+    } else {
+      stageContainer.style.cursor = "default";
+    }
+  }
+
+  addTextBtn.addEventListener("click", () => setTool(currentTool === 'text' ? null : 'text'));
+  addRectBtn.addEventListener("click", () => setTool(currentTool === 'rect' ? null : 'rect'));
+  addArrowBtn.addEventListener("click", () => setTool(currentTool === 'arrow' ? null : 'arrow'));
+  addLineBtn.addEventListener("click", () => setTool(currentTool === 'line' ? null : 'line'));
+
+  // --- PDF読み込み ---
+  document.getElementById("openPdfBtn").addEventListener("click", () => fileInput.click());
+
+  fileInput.addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    currentFileName = file.name.replace(/\.[^/.]+$/, "");
+
+    userHistoryList = [];
+    updateTextHistorySelectUI("");
+
+    const arrayBuffer = await file.arrayBuffer();
+    pdfOriginalBytes = arrayBuffer;
+
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    pdfDoc = await loadingTask.promise;
+    totalPages = pdfDoc.numPages;
+    currentPage = 1;
+    annotations = {};
+    undoStack = [];
+    redoStack = [];
+    currentScale = 1.0;
+    setTool(null);
+    updateZoomUI();
+    updateHistoryUI();
+
+    emptyPlaceholder.style.display = "none";
+    stageContainer.style.display = "block";
+
+    enableControls(true);
+    renderPage(currentPage);
+  });
+
+  function enableControls(enable) {
+    document.getElementById("savePdfBtn").disabled = !enable;
+    addTextBtn.disabled = !enable;
+    textHistorySelect.disabled = !enable;
+    addRectBtn.disabled = !enable;
+    addArrowBtn.disabled = !enable;
+    addLineBtn.disabled = !enable;
+    document.getElementById("prevPageBtn").disabled = !enable;
+    document.getElementById("nextPageBtn").disabled = !enable;
+    zoomDisplay.style.pointerEvents = enable ? "auto" : "none";
+    checkDeleteHistoryBtnState();
+    updateZoomUI();
+  }
+
+  // --- ページ描画 ---
+  async function renderPage(pageNum) {
+    if (!pdfDoc) return;
+    const page = await pdfDoc.getPage(pageNum);
+    const viewport = page.getViewport({ scale: currentScale });
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    stageContainer.style.width = `${viewport.width}px`;
+    stageContainer.style.height = `${viewport.height}px`;
+
+    const renderContext = { canvasContext: ctx, viewport: viewport };
+    await page.render(renderContext).promise;
+
+    document.getElementById("pageInfo").textContent = `${pageNum} / ${totalPages}`;
+    renderAnnotations();
+  }
+
+  // --- オブジェクト配置処理 ---
+  function addItemAt(type, posX, posY, options = {}) {
+    if (!annotations[currentPage]) annotations[currentPage] = [];
+    recordHistory();
+
+    const id = Date.now();
+    const w = options.w || (160 * currentScale);
+    const h = options.h || (60 * currentScale);
+
+    const safeX = Math.max(8, Math.min(posX, canvas.width - w - 8));
+    const safeY = Math.max(8, Math.min(posY, canvas.height - h - 8));
+
+    const defaultItem = {
+      id: id,
+      type: type,
+      x: safeX,
+      y: safeY,
+      w: w,
+      h: h,
+      color: currentColor,
+      fill: isCurrentFill,
+      rotation: 0,
+      lineWidth: (currentLineWidth * currentScale),
+      text: options.text !== undefined ? options.text : "",
+      fontSize: options.fontSize || (currentFontSize * currentScale)
+    };
+
+    annotations[currentPage].push(defaultItem);
+    selectItem(id, true);
+
+    if (type === "text") {
+      setTimeout(() => {
+        const el = document.getElementById(`item_${id}`);
+        if (el) {
+          const editor = el.querySelector(".text-editor");
+          if (editor) {
+            editor.focus();
+            const range = document.createRange();
+            range.selectNodeContents(editor);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+      }, 50);
+    }
+  }
+
+  // --- ステージクリック：配置モード実行または直線描画 ---
+  stageContainer.addEventListener("mousedown", (e) => {
+    if (!currentTool) return;
+    if (e.target.closest("button") || e.target.closest("select") || e.target.closest("input")) return;
+
+    const rect = stageContainer.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    // 直線モード
+    if (currentTool === 'line') {
+      e.preventDefault();
+      if (!annotations[currentPage]) annotations[currentPage] = [];
+      const id = Date.now();
+      const newLine = {
+        id: id,
+        type: "line",
+        x1: clickX,
+        y1: clickY,
+        x2: clickX,
+        y2: clickY,
+        color: currentColor,
+        lineWidth: (currentLineWidth * currentScale)
+      };
+
+      recordHistory();
+      annotations[currentPage].push(newLine);
+
+      function onMouseMove(ev) {
+        let curX = ev.clientX - rect.left;
+        let curY = ev.clientY - rect.top;
+
+        if (ev.shiftKey) {
+          const dx = Math.abs(curX - clickX);
+          const dy = Math.abs(curY - clickY);
+          if (dx >= dy) curY = clickY;
+          else curX = clickX;
+        }
+
+        newLine.x2 = curX;
+        newLine.y2 = curY;
+        renderAnnotations();
+      }
+
+      function onMouseUp() {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        setTool(null);
+        selectItem(id, true);
+      }
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+      return;
+    }
+
+    // 文字配置モード
+    if (currentTool === 'text') {
+      const selectedText = textHistorySelect.value || "";
+      const effectiveFontSize = currentFontSize * currentScale;
+      const lines = selectedText ? selectedText.split(/\r?\n/) : [""];
+      const maxLineLength = Math.max(...lines.map(l => l.length));
+      const initialWidth = selectedText ? Math.max(80 * currentScale, maxLineLength * effectiveFontSize + 20 * currentScale) : (120 * currentScale);
+      const initialHeight = Math.max(28 * currentScale, lines.length * (effectiveFontSize * 1.25) + 8 * currentScale);
+
+      addItemAt("text", clickX, clickY, { w: initialWidth, h: initialHeight, text: selectedText, fontSize: effectiveFontSize });
+      updateTextHistorySelectUI("");
+      setTool(null);
+      return;
+    }
+
+    // 四角枠配置モード
+    if (currentTool === 'rect') {
+      addItemAt("rect", clickX, clickY, { w: 160 * currentScale, h: 90 * currentScale });
+      setTool(null);
+      return;
+    }
+
+    // 矢印枠配置モード
+    if (currentTool === 'arrow') {
+      addItemAt("arrow", clickX, clickY, { w: 150 * currentScale, h: 60 * currentScale });
+      setTool(null);
+      return;
+    }
+  });
+
+  // --- アノテーション描画 ---
+  function renderAnnotations() {
+    annoLayer.innerHTML = "";
+    lineSvgLayer.innerHTML = "";
+    document.querySelectorAll(".line-handle").forEach(h => h.remove());
+
+    const items = annotations[currentPage] || [];
+
+    items.forEach(item => {
+      // 直線
+      if (item.type === "line") {
+        renderLineItem(item);
+        return;
+      }
+
+      // 通常要素
+      const el = document.createElement("div");
+      el.className = `anno-item ${item.id === selectedItemId ? 'selected' : ''}`;
+      el.id = `item_${item.id}`;
+      el.style.left = `${item.x}px`;
+      el.style.top = `${item.y}px`;
+      el.style.width = `${item.w}px`;
+
+      if (item.type !== "text") {
+        el.style.height = `${item.h}px`;
+      }
+
+      if (item.rotation) {
+        el.style.transform = `rotate(${item.rotation}deg)`;
+        el.style.transformOrigin = "center center";
+      }
+
+      if (item.color.toLowerCase() === "#ffffff") {
+        el.classList.add("is-white");
+      }
+
+      const lWidth = item.lineWidth || (4 * currentScale);
+
+      // 四角枠
+      if (item.type === "rect") {
+        el.classList.add("anno-rect");
+        el.style.border = `${lWidth}px solid ${item.color}`;
+        el.style.backgroundColor = item.fill ? item.color : "transparent";
+
+        const handleSE = document.createElement("div");
+        handleSE.className = "handle handle-se";
+        handleSE.addEventListener("mousedown", (e) => startResize(e, item));
+        el.appendChild(handleSE);
+
+      // 矢印枠
+      } else if (item.type === "arrow") {
+        el.classList.add("anno-arrow");
+        const fillColor = item.fill ? item.color : "none";
+
+        el.innerHTML = `
+          <svg viewBox="0 0 100 60" preserveAspectRatio="none">
+            <path d="M 5,20 L 60,20 L 60,5 L 95,30 L 60,55 L 60,40 L 5,40 Z"
+                  fill="${fillColor}" stroke="${item.color}" stroke-width="${Math.max(2, lWidth * 0.9)}" stroke-linejoin="round" />
+          </svg>
+        `;
+
+        const handleSE = document.createElement("div");
+        handleSE.className = "handle handle-se";
+        handleSE.addEventListener("mousedown", (e) => startResize(e, item));
+        el.appendChild(handleSE);
+
+      // 文字枠
+      } else if (item.type === "text") {
+        el.classList.add("anno-text-container");
+        el.style.color = item.color;
+        el.style.fontSize = `${item.fontSize || (18 * currentScale)}px`;
+        el.style.fontWeight = "bold";
+
+        const editor = document.createElement("div");
+        editor.className = "text-editor";
+        editor.contentEditable = "true";
+        editor.innerText = item.text || "";
+
+        let textBeforeEdit = item.text;
+        editor.addEventListener("focus", () => { textBeforeEdit = item.text; });
+
+        editor.addEventListener("blur", () => {
+          const newText = editor.innerText.trim();
+          item.text = editor.innerText;
+          item.h = el.offsetHeight;
+          item.w = Math.max(item.w, el.offsetWidth);
+
+          if (item.text !== textBeforeEdit) {
+            recordHistory();
+            if (newText) pushUserHistory(newText);
+          }
+        });
+
+        editor.addEventListener("input", () => {
+          item.text = editor.innerText;
+          item.h = el.offsetHeight;
+          item.w = Math.max(item.w, el.offsetWidth);
+        });
+
+        editor.addEventListener("keydown", (e) => { e.stopPropagation(); });
+
+        el.appendChild(editor);
+
+        const handleSE = document.createElement("div");
+        handleSE.className = "handle handle-se";
+        handleSE.addEventListener("mousedown", (e) => startResize(e, item));
+        el.appendChild(handleSE);
+      }
+
+      // クリック、ダブルクリック、ドラッグ開始
+      el.addEventListener("mousedown", (e) => {
+        if (currentTool) return;
+        if (e.target.classList.contains("handle")) return;
+
+        const editor = el.querySelector(".text-editor");
+        if (editor && document.activeElement === editor) return;
+
+        const now = Date.now();
+        const isDbl = (now - (item._lastClickTime || 0)) < 350;
+        item._lastClickTime = now;
+
+        if (isDbl) {
+          e.stopPropagation();
+          item._lastClickTime = 0;
+
+          if (item.type === "text") {
+            if (editor) {
+              editor.focus();
+              const range = document.createRange();
+              range.selectNodeContents(editor);
+              const sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
+            return;
+          } else {
+            recordHistory();
+            item.rotation = ((item.rotation || 0) + 90) % 360;
+            renderAnnotations();
+            return;
+          }
+        }
+
+        selectItem(item.id, false);
+        startDrag(e, item, el);
+      });
+
+      annoLayer.appendChild(el);
+    });
+
+    document.getElementById("deleteBtn").disabled = !selectedItemId;
+  }
+
+  // --- 直線描画処理 ---
+  function renderLineItem(item) {
+    const isSelected = (item.id === selectedItemId);
+    const lWidth = item.lineWidth || (4 * currentScale);
+
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    if (isSelected) g.classList.add("line-selected");
+
+    if (isSelected) {
+      const pad = 10 * currentScale;
+      const minX = Math.min(item.x1, item.x2) - pad;
+      const minY = Math.min(item.y1, item.y2) - pad;
+      const boxW = Math.max(20, Math.abs(item.x2 - item.x1) + pad * 2);
+      const boxH = Math.max(20, Math.abs(item.y2 - item.y1) + pad * 2);
+
+      const selectionBox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      selectionBox.setAttribute("x", minX);
+      selectionBox.setAttribute("y", minY);
+      selectionBox.setAttribute("width", boxW);
+      selectionBox.setAttribute("height", boxH);
+      selectionBox.setAttribute("fill", "rgba(37, 99, 235, 0.04)");
+      selectionBox.setAttribute("stroke", "#2563eb");
+      selectionBox.setAttribute("stroke-width", "1.5");
+      selectionBox.setAttribute("stroke-dasharray", "4,4");
+      selectionBox.setAttribute("rx", "4");
+      g.appendChild(selectionBox);
+    }
+
+    const hitLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    hitLine.setAttribute("x1", item.x1);
+    hitLine.setAttribute("y1", item.y1);
+    hitLine.setAttribute("x2", item.x2);
+    hitLine.setAttribute("y2", item.y2);
+    hitLine.setAttribute("stroke-width", Math.max(22, lWidth + 14));
+    hitLine.classList.add("line-hit-area");
+
+    const visLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    visLine.setAttribute("x1", item.x1);
+    visLine.setAttribute("y1", item.y1);
+    visLine.setAttribute("x2", item.x2);
+    visLine.setAttribute("y2", item.y2);
+    visLine.setAttribute("stroke", item.color);
+    visLine.setAttribute("stroke-width", lWidth);
+    visLine.classList.add("line-visible-path");
+
+    if (item.color.toLowerCase() === "#ffffff") {
+      visLine.setAttribute("stroke-dasharray", "4,4");
+      visLine.setAttribute("stroke", "#9ca3af");
+    }
+
+    g.appendChild(hitLine);
+    g.appendChild(visLine);
+
+    hitLine.addEventListener("mousedown", (e) => {
+      if (currentTool) return;
+      e.stopPropagation();
+
+      const now = Date.now();
+      if ((now - (item._lastClickTime || 0)) < 350) {
+        recordHistory();
+        const cx = (item.x1 + item.x2) / 2;
+        const cy = (item.y1 + item.y2) / 2;
+        const dx = (item.x2 - item.x1) / 2;
+        const dy = (item.y2 - item.y1) / 2;
+
+        item.x1 = cx + dy;
+        item.y1 = cy - dx;
+        item.x2 = cx - dy;
+        item.y2 = cy + dx;
+
+        item._lastClickTime = 0;
+        renderAnnotations();
+        return;
+      }
+      item._lastClickTime = now;
+
+      selectItem(item.id, true);
+      startLineDrag(e, item, g);
+    });
+
+    lineSvgLayer.appendChild(g);
+
+    if (isSelected) {
+      const h1 = document.createElement("div");
+      h1.className = "line-handle";
+      h1.style.left = `${item.x1}px`;
+      h1.style.top = `${item.y1}px`;
+      h1.addEventListener("mousedown", (e) => startLinePointDrag(e, item, 1));
+      stageContainer.appendChild(h1);
+
+      const h2 = document.createElement("div");
+      h2.className = "line-handle";
+      h2.style.left = `${item.x2}px`;
+      h2.style.top = `${item.y2}px`;
+      h2.addEventListener("mousedown", (e) => startLinePointDrag(e, item, 2));
+      stageContainer.appendChild(h2);
+    }
+  }
+
+  function startLineDrag(e, item, gElement) {
+    let startX = e.clientX;
+    let startY = e.clientY;
+    let origX1 = item.x1, origY1 = item.y1;
+    let origX2 = item.x2, origY2 = item.y2;
+    let hasMoved = false;
+    const snapshotBeforeMove = JSON.stringify(annotations);
+
+    function onMouseMove(ev) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      if (!hasMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        hasMoved = true;
+        gElement.style.opacity = "0.7";
+        gElement.style.filter = "drop-shadow(0 8px 16px rgba(0,0,0,0.3))";
+      }
+
+      if (hasMoved) {
+        item.x1 = origX1 + dx;
+        item.y1 = origY1 + dy;
+        item.x2 = origX2 + dx;
+        item.y2 = origY2 + dy;
+        renderAnnotations();
+      }
+    }
+
+    function onMouseUp(ev) {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+
+      if (hasMoved) {
+        undoStack.push(snapshotBeforeMove);
+        if (undoStack.length > MAX_HISTORY) undoStack.shift();
+        redoStack = [];
+        updateHistoryUI();
+        renderAnnotations();
+      }
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
+  function startLinePointDrag(e, item, pointIndex) {
+    e.stopPropagation();
+    const rect = stageContainer.getBoundingClientRect();
+    const fixedX = (pointIndex === 1) ? item.x2 : item.x1;
+    const fixedY = (pointIndex === 1) ? item.y2 : item.y1;
+    const snapshotBeforeResize = JSON.stringify(annotations);
+
+    function onMouseMove(ev) {
+      let curX = ev.clientX - rect.left;
+      let curY = ev.clientY - rect.top;
+
+      if (ev.shiftKey) {
+        const dx = Math.abs(curX - fixedX);
+        const dy = Math.abs(curY - fixedY);
+        if (dx >= dy) curY = fixedY;
+        else curX = fixedX;
+      }
+
+      if (pointIndex === 1) { item.x1 = curX; item.y1 = curY; }
+      else { item.x2 = curX; item.y2 = curY; }
+      renderAnnotations();
+    }
+
+    function onMouseUp() {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      undoStack.push(snapshotBeforeResize);
+      if (undoStack.length > MAX_HISTORY) undoStack.shift();
+      redoStack = [];
+      updateHistoryUI();
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
+  // アイテム選択処理
+  function selectItem(id, needRebuild = true) {
+    selectedItemId = id;
+    const items = annotations[currentPage] || [];
+    const target = items.find(i => i.id === id);
+
+    if (target) {
+      currentColor = target.color;
+      updateColorPaletteUI();
+
+      if (target.type === "rect" || target.type === "arrow" || target.type === "line") {
+        lineWidthSelect.disabled = false;
+        lineWidthSelect.value = String(Math.round((target.lineWidth || (4 * currentScale)) / currentScale));
+      } else {
+        lineWidthSelect.disabled = true;
+      }
+
+      if (target.type === "rect" || target.type === "arrow") {
+        fillCheckbox.disabled = false;
+        fillCheckbox.checked = !!target.fill;
+      } else {
+        fillCheckbox.disabled = true;
+      }
+
+      if (target.type === "text") {
+        fontSizeSelect.disabled = false;
+        fontSizeSelect.value = String(Math.round((target.fontSize || (18 * currentScale)) / currentScale));
+      } else {
+        fontSizeSelect.disabled = true;
+      }
+    }
+
+    if (needRebuild) {
+      renderAnnotations();
+    } else {
+      document.querySelectorAll(".anno-item").forEach(node => {
+        if (node.id === `item_${id}`) node.classList.add("selected");
+        else node.classList.remove("selected");
+      });
+      document.querySelectorAll(".line-selected").forEach(node => node.classList.remove("line-selected"));
+      document.querySelectorAll(".line-handle").forEach(h => h.remove());
+      document.getElementById("deleteBtn").disabled = !selectedItemId;
+    }
+  }
+
+  // モーダル風ドラッグ移動
+  function startDrag(e, item, el) {
+    const editor = el.querySelector(".text-editor");
+    if (editor && document.activeElement === editor) return;
+
+    let startX = e.clientX;
+    let startY = e.clientY;
+    let origX = item.x;
+    let origY = item.y;
+    let hasMoved = false;
+    const snapshotBeforeMove = JSON.stringify(annotations);
+
+    function onMouseMove(ev) {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      if (!hasMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        hasMoved = true;
+        el.classList.add("is-dragging");
+      }
+
+      if (hasMoved) {
+        item.x = Math.max(0, origX + dx);
+        item.y = Math.max(0, origY + dy);
+        el.style.left = `${item.x}px`;
+        el.style.top = `${item.y}px`;
+      }
+    }
+
+    function onMouseUp(ev) {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+
+      if (hasMoved) {
+        el.classList.remove("is-dragging");
+        undoStack.push(snapshotBeforeMove);
+        if (undoStack.length > MAX_HISTORY) undoStack.shift();
+        redoStack = [];
+        updateHistoryUI();
+        renderAnnotations();
+      }
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
+  // リサイズ操作
+  function startResize(e, item) {
+    e.stopPropagation();
+    let startX = e.clientX;
+    let startY = e.clientY;
+    let origW = item.w;
+    let origH = item.h;
+    const snapshotBeforeResize = JSON.stringify(annotations);
+
+    function onMouseMove(ev) {
+      item.w = Math.max(30 * currentScale, origW + (ev.clientX - startX));
+      if (item.type !== "text") {
+        item.h = Math.max(20 * currentScale, origH + (ev.clientY - startY));
+      }
+      renderAnnotations();
+    }
+
+    function onMouseUp() {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+
+      if (item.w !== origW || (item.type !== "text" && item.h !== origH)) {
+        undoStack.push(snapshotBeforeResize);
+        if (undoStack.length > MAX_HISTORY) undoStack.shift();
+        redoStack = [];
+        updateHistoryUI();
+      }
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
+  // 背景クリックで選択解除およびツールモード解除
+  mainContainer.addEventListener("mousedown", (e) => {
+    if (currentTool) return;
+    if (e.target === mainContainer || e.target === canvas || e.target === annoLayer) {
+      selectedItemId = null;
+      fillCheckbox.disabled = false;
+      fontSizeSelect.disabled = true;
+      lineWidthSelect.disabled = true;
+      document.querySelectorAll(".line-handle").forEach(h => h.remove());
+      renderAnnotations();
+    }
+  });
+
+  // プロパティ変更
+  lineWidthSelect.addEventListener("change", () => {
+    currentLineWidth = Number(lineWidthSelect.value);
+    if (selectedItemId && annotations[currentPage]) {
+      const item = annotations[currentPage].find(i => i.id === selectedItemId);
+      if (item && (item.type === "rect" || item.type === "arrow" || item.type === "line")) {
+        recordHistory();
+        item.lineWidth = currentLineWidth * currentScale;
+        renderAnnotations();
+      }
+    }
+  });
+
+  fillCheckbox.addEventListener("change", () => {
+    isCurrentFill = fillCheckbox.checked;
+    if (selectedItemId && annotations[currentPage]) {
+      const item = annotations[currentPage].find(i => i.id === selectedItemId);
+      if (item && (item.type === "rect" || item.type === "arrow")) {
+        recordHistory();
+        item.fill = isCurrentFill;
+        renderAnnotations();
+      }
+    }
+  });
+
+  fontSizeSelect.addEventListener("change", () => {
+    currentFontSize = Number(fontSizeSelect.value);
+    if (selectedItemId && annotations[currentPage]) {
+      const item = annotations[currentPage].find(i => i.id === selectedItemId);
+      if (item && item.type === "text") {
+        recordHistory();
+        item.fontSize = currentFontSize * currentScale;
+        renderAnnotations();
+      }
+    }
+  });
+
+  function deleteSelectedItem() {
+    if (!selectedItemId || !annotations[currentPage]) return;
+    recordHistory();
+    annotations[currentPage] = annotations[currentPage].filter(i => i.id !== selectedItemId);
+    selectedItemId = null;
+    fontSizeSelect.disabled = true;
+    lineWidthSelect.disabled = true;
+    document.querySelectorAll(".line-handle").forEach(h => h.remove());
+    renderAnnotations();
+  }
+
+  document.getElementById("deleteBtn").addEventListener("click", deleteSelectedItem);
+
+  // 色選択
+  const colorDots = document.querySelectorAll(".color-dot");
+  colorDots.forEach(dot => {
+    dot.addEventListener("click", () => {
+      currentColor = dot.dataset.color;
+      updateColorPaletteUI();
+
+      if (selectedItemId && annotations[currentPage]) {
+        const item = annotations[currentPage].find(i => i.id === selectedItemId);
+        if (item && item.color !== currentColor) {
+          recordHistory();
+          item.color = currentColor;
+          renderAnnotations();
+        }
+      }
+    });
+  });
+
+  function updateColorPaletteUI() {
+    colorDots.forEach(dot => {
+      if (dot.dataset.color === currentColor) dot.classList.add("selected");
+      else dot.classList.remove("selected");
+    });
+  }
+
+  document.getElementById("prevPageBtn").addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage--;
+      selectedItemId = null;
+      setTool(null);
+      fontSizeSelect.disabled = true;
+      lineWidthSelect.disabled = true;
+      renderPage(currentPage);
+    }
+  });
+
+  document.getElementById("nextPageBtn").addEventListener("click", () => {
+    if (currentPage < totalPages) {
+      currentPage++;
+      selectedItemId = null;
+      setTool(null);
+      fontSizeSelect.disabled = true;
+      lineWidthSelect.disabled = true;
+      renderPage(currentPage);
+    }
+  });
+
+  // --- PDF保存処理 ---
+  document.getElementById("savePdfBtn").addEventListener("click", async () => {
+    const saveBtn = document.getElementById("savePdfBtn");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "💾 保存中...";
+
+    try {
+      const pdfOutDoc = await PDFLib.PDFDocument.create();
+
+      for (let p = 1; p <= totalPages; p++) {
+        const page = await pdfDoc.getPage(p);
+        const exportScale = 2.0;
+        const viewport = page.getViewport({ scale: exportScale });
+
+        const offCanvas = document.createElement("canvas");
+        offCanvas.width = viewport.width;
+        offCanvas.height = viewport.height;
+        const offCtx = offCanvas.getContext("2d");
+
+        await page.render({ canvasContext: offCtx, viewport: viewport }).promise;
+
+        const pageItems = annotations[p] || [];
+        const scaleRatio = exportScale / currentScale;
+
+        for (const item of pageItems) {
+          offCtx.save();
+          const lWidth = (item.lineWidth || (4 * currentScale)) * scaleRatio;
+
+          // 1. 直線
+          if (item.type === "line") {
+            offCtx.strokeStyle = item.color;
+            offCtx.lineWidth = lWidth;
+            offCtx.lineCap = "round";
+            offCtx.beginPath();
+            offCtx.moveTo(item.x1 * scaleRatio, item.y1 * scaleRatio);
+            offCtx.lineTo(item.x2 * scaleRatio, item.y2 * scaleRatio);
+            offCtx.stroke();
+            offCtx.restore();
+            continue;
+          }
+
+          const x = item.x * scaleRatio;
+          const y = item.y * scaleRatio;
+          const w = item.w * scaleRatio;
+          const h = (item.h || 30) * scaleRatio;
+
+          if (item.rotation) {
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+            offCtx.translate(cx, cy);
+            offCtx.rotate((item.rotation * Math.PI) / 180);
+            offCtx.translate(-cx, -cy);
+          }
+
+          // 2. 四角枠
+          if (item.type === "rect") {
+            if (item.fill) {
+              offCtx.fillStyle = item.color;
+              offCtx.fillRect(x, y, w, h);
+            }
+            offCtx.strokeStyle = item.color;
+            offCtx.lineWidth = lWidth;
+            offCtx.strokeRect(x, y, w, h);
+
+          // 3. 矢印枠
+          } else if (item.type === "arrow") {
+            offCtx.beginPath();
+            offCtx.moveTo(x + w * 0.05, y + h * 0.33);
+            offCtx.lineTo(x + w * 0.60, y + h * 0.33);
+            offCtx.lineTo(x + w * 0.60, y + h * 0.10);
+            offCtx.lineTo(x + w * 0.95, y + h * 0.50);
+            offCtx.lineTo(x + w * 0.60, y + h * 0.90);
+            offCtx.lineTo(x + w * 0.60, y + h * 0.67);
+            offCtx.lineTo(x + w * 0.05, y + h * 0.67);
+            offCtx.closePath();
+
+            if (item.fill) {
+              offCtx.fillStyle = item.color;
+              offCtx.fill();
+            }
+            offCtx.strokeStyle = item.color;
+            offCtx.lineWidth = Math.max(2, lWidth * 0.9);
+            offCtx.lineJoin = "round";
+            offCtx.stroke();
+
+          // 4. 文字（複数行描画）
+          } else if (item.type === "text") {
+            offCtx.fillStyle = item.color;
+            const fontSize = (item.fontSize || (18 * currentScale)) * scaleRatio;
+            offCtx.font = `bold ${fontSize}px sans-serif`;
+            offCtx.textBaseline = "top";
+
+            const lines = (item.text || "").split(/\r?\n/);
+            lines.forEach((line, idx) => {
+              offCtx.fillText(line, x + 6 * scaleRatio, y + 4 * scaleRatio + idx * (fontSize * 1.25));
+            });
+          }
+          offCtx.restore();
+        }
+
+        const imgDataUrl = offCanvas.toDataURL("image/jpeg", 0.92);
+        const imgBytes = await fetch(imgDataUrl).then(res => res.arrayBuffer());
+        const pdfImage = await pdfOutDoc.embedJpg(imgBytes);
+
+        const origViewport = page.getViewport({ scale: 1.0 });
+        const newPage = pdfOutDoc.addPage([origViewport.width, origViewport.height]);
+        newPage.drawImage(pdfImage, {
+          x: 0,
+          y: 0,
+          width: origViewport.width,
+          height: origViewport.height
+        });
+      }
+
+      const pdfBytes = await pdfOutDoc.save();
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const downloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `${currentFileName}_edited.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+    } catch (err) {
+      alert("保存中にエラーが発生しました: " + err.message);
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = "💾 PDFを保存";
+    }
+  });
+</script>
+</body>
+</html>
