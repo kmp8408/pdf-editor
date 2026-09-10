@@ -229,7 +229,7 @@
       font-weight: 600;
     }
 
-    /* 🌟 メイン作業エリア（スクロール時の左端切れバグを完全防止） */
+    /* メイン作業エリア */
     main {
       flex: 1;
       overflow: auto;
@@ -237,7 +237,7 @@
       position: relative;
     }
 
-    /* 🌟 PDFステージコンテナ（標準時は中央、拡大時は左から正しくスクロール可能） */
+    /* PDFステージコンテナ */
     .pdf-stage-container {
       position: relative;
       background: #fff;
@@ -423,11 +423,13 @@
     <span class="app-version">ver7.0.1</span>
   </div>
 
-  <!-- ファイル操作 -->
+  <!-- ファイル操作 ＆ マニュアル -->
   <div class="tool-group">
     <button id="openPdfBtn" class="btn-primary">📂 PDFを開く</button>
     <input type="file" id="pdfFileInput" accept="application/pdf" style="display: none;">
     <button id="savePdfBtn" class="btn-primary" style="background:#059669; border-color:#059669;" disabled>💾 PDFを保存</button>
+    <!-- 🌟 操作マニュアルボタン -->
+    <button id="manualBtn" title="操作マニュアルを別タブで開きます">📖 マニュアル</button>
   </div>
 
   <!-- UNDO & REDO -->
@@ -586,6 +588,12 @@
   const zoomInBtn = document.getElementById("zoomInBtn");
   const zoomOutBtn = document.getElementById("zoomOutBtn");
   const zoomDisplay = document.getElementById("zoomDisplay");
+  const manualBtn = document.getElementById("manualBtn");
+
+  // 🌟【マニュアルボタン】別タブで manual.html を開く
+  manualBtn.addEventListener("click", () => {
+    window.open("manual.html", "_blank");
+  });
 
   // --- 履歴記録関数 (Undo/Redo) ---
   function recordHistory() {
@@ -657,13 +665,11 @@
     const ratio = newScale / currentScale;
     currentScale = newScale;
 
-    // 全ページの配置オブジェクトをスケーリング
     for (const page in annotations) {
       if (!annotations[page]) continue;
       annotations[page].forEach(item => scaleItem(item, ratio));
     }
 
-    // Undo / Redo スタックのデータも整合
     undoStack = undoStack.map(jsonStr => {
       try {
         const data = JSON.parse(jsonStr);
@@ -929,7 +935,6 @@
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
-    // 直線モード
     if (currentTool === 'line') {
       e.preventDefault();
       if (!annotations[currentPage]) annotations[currentPage] = [];
@@ -976,7 +981,6 @@
       return;
     }
 
-    // 文字配置モード
     if (currentTool === 'text') {
       const selectedText = textHistorySelect.value || "";
       const effectiveFontSize = currentFontSize * currentScale;
@@ -991,14 +995,12 @@
       return;
     }
 
-    // 四角枠配置モード
     if (currentTool === 'rect') {
       addItemAt("rect", clickX, clickY, { w: 160 * currentScale, h: 90 * currentScale });
       setTool(null);
       return;
     }
 
-    // 矢印枠配置モード
     if (currentTool === 'arrow') {
       addItemAt("arrow", clickX, clickY, { w: 150 * currentScale, h: 60 * currentScale });
       setTool(null);
@@ -1015,13 +1017,11 @@
     const items = annotations[currentPage] || [];
 
     items.forEach(item => {
-      // 直線
       if (item.type === "line") {
         renderLineItem(item);
         return;
       }
 
-      // 通常要素
       const el = document.createElement("div");
       el.className = `anno-item ${item.id === selectedItemId ? 'selected' : ''}`;
       el.id = `item_${item.id}`;
@@ -1044,7 +1044,6 @@
 
       const lWidth = item.lineWidth || (4 * currentScale);
 
-      // 四角枠
       if (item.type === "rect") {
         el.classList.add("anno-rect");
         el.style.border = `${lWidth}px solid ${item.color}`;
@@ -1055,7 +1054,6 @@
         handleSE.addEventListener("mousedown", (e) => startResize(e, item));
         el.appendChild(handleSE);
 
-      // 矢印枠
       } else if (item.type === "arrow") {
         el.classList.add("anno-arrow");
         const fillColor = item.fill ? item.color : "none";
@@ -1072,7 +1070,6 @@
         handleSE.addEventListener("mousedown", (e) => startResize(e, item));
         el.appendChild(handleSE);
 
-      // 文字枠
       } else if (item.type === "text") {
         el.classList.add("anno-text-container");
         el.style.color = item.color;
@@ -1115,7 +1112,6 @@
         el.appendChild(handleSE);
       }
 
-      // クリック、ダブルクリック、ドラッグ開始
       el.addEventListener("mousedown", (e) => {
         if (currentTool) return;
         if (e.target.classList.contains("handle")) return;
@@ -1463,7 +1459,7 @@
     document.addEventListener("mouseup", onMouseUp);
   }
 
-  // 背景クリックで選択解除およびツールモード解除
+  // 背景クリックで選択解除
   mainContainer.addEventListener("mousedown", (e) => {
     if (currentTool) return;
     if (e.target === mainContainer || e.target === canvas || e.target === annoLayer) {
@@ -1601,7 +1597,6 @@
           offCtx.save();
           const lWidth = (item.lineWidth || (4 * currentScale)) * scaleRatio;
 
-          // 1. 直線
           if (item.type === "line") {
             offCtx.strokeStyle = item.color;
             offCtx.lineWidth = lWidth;
@@ -1627,7 +1622,6 @@
             offCtx.translate(-cx, -cy);
           }
 
-          // 2. 四角枠
           if (item.type === "rect") {
             if (item.fill) {
               offCtx.fillStyle = item.color;
@@ -1637,7 +1631,6 @@
             offCtx.lineWidth = lWidth;
             offCtx.strokeRect(x, y, w, h);
 
-          // 3. 矢印枠
           } else if (item.type === "arrow") {
             offCtx.beginPath();
             offCtx.moveTo(x + w * 0.05, y + h * 0.33);
@@ -1658,7 +1651,6 @@
             offCtx.lineJoin = "round";
             offCtx.stroke();
 
-          // 4. 文字（複数行描画）
           } else if (item.type === "text") {
             offCtx.fillStyle = item.color;
             const fontSize = (item.fontSize || (18 * currentScale)) * scaleRatio;
