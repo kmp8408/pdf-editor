@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF書き込みくん (ver7.0.1)</title>
+  <title>PDF書き込みくん (ver7.0.4)</title>
   <!-- PDF描画ライブラリ (PDF.js & pdf-lib) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
@@ -384,6 +384,8 @@
       pointer-events: none;
       stroke-linecap: round;
     }
+
+    /* 直線の始点・終点丸ハンドル */
     .line-handle {
       position: absolute;
       width: 12px;
@@ -394,11 +396,9 @@
       pointer-events: auto;
       cursor: crosshair;
       transform: translate(-50%, -50%);
-      display: none;
-      z-index: 15;
-    }
-    .line-selected .line-handle {
       display: block;
+      z-index: 20;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
     }
 
     /* 初期案内表示 */
@@ -417,10 +417,10 @@
 <body>
 
 <header>
-  <!-- アプリ名とバージョン (ver7.0.1) -->
+  <!-- アプリ名とバージョン (ver7.0.4) -->
   <div class="app-brand">
     <span class="app-title">PDF書き込みくん</span>
-    <span class="app-version">ver7.0.1</span>
+    <span class="app-version">ver7.0.4</span>
   </div>
 
   <!-- ファイル操作 ＆ マニュアル -->
@@ -428,7 +428,6 @@
     <button id="openPdfBtn" class="btn-primary">📂 PDFを開く</button>
     <input type="file" id="pdfFileInput" accept="application/pdf" style="display: none;">
     <button id="savePdfBtn" class="btn-primary" style="background:#059669; border-color:#059669;" disabled>💾 PDFを保存</button>
-    <!-- 🌟 操作マニュアルボタン -->
     <button id="manualBtn" title="操作マニュアルを別タブで開きます">📖 マニュアル</button>
   </div>
 
@@ -590,7 +589,6 @@
   const zoomDisplay = document.getElementById("zoomDisplay");
   const manualBtn = document.getElementById("manualBtn");
 
-  // 🌟【マニュアルボタン】別タブで manual.html を開く
   manualBtn.addEventListener("click", () => {
     window.open("manual.html", "_blank");
   });
@@ -935,6 +933,7 @@
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
+    // 直線モード
     if (currentTool === 'line') {
       e.preventDefault();
       if (!annotations[currentPage]) annotations[currentPage] = [];
@@ -981,6 +980,7 @@
       return;
     }
 
+    // 文字配置モード
     if (currentTool === 'text') {
       const selectedText = textHistorySelect.value || "";
       const effectiveFontSize = currentFontSize * currentScale;
@@ -995,12 +995,14 @@
       return;
     }
 
+    // 四角枠配置モード
     if (currentTool === 'rect') {
       addItemAt("rect", clickX, clickY, { w: 160 * currentScale, h: 90 * currentScale });
       setTool(null);
       return;
     }
 
+    // 矢印枠配置モード
     if (currentTool === 'arrow') {
       addItemAt("arrow", clickX, clickY, { w: 150 * currentScale, h: 60 * currentScale });
       setTool(null);
@@ -1017,11 +1019,13 @@
     const items = annotations[currentPage] || [];
 
     items.forEach(item => {
+      // 直線
       if (item.type === "line") {
         renderLineItem(item);
         return;
       }
 
+      // 通常要素
       const el = document.createElement("div");
       el.className = `anno-item ${item.id === selectedItemId ? 'selected' : ''}`;
       el.id = `item_${item.id}`;
@@ -1044,6 +1048,7 @@
 
       const lWidth = item.lineWidth || (4 * currentScale);
 
+      // 四角枠
       if (item.type === "rect") {
         el.classList.add("anno-rect");
         el.style.border = `${lWidth}px solid ${item.color}`;
@@ -1054,6 +1059,7 @@
         handleSE.addEventListener("mousedown", (e) => startResize(e, item));
         el.appendChild(handleSE);
 
+      // 矢印枠
       } else if (item.type === "arrow") {
         el.classList.add("anno-arrow");
         const fillColor = item.fill ? item.color : "none";
@@ -1070,6 +1076,7 @@
         handleSE.addEventListener("mousedown", (e) => startResize(e, item));
         el.appendChild(handleSE);
 
+      // 文字枠
       } else if (item.type === "text") {
         el.classList.add("anno-text-container");
         el.style.color = item.color;
@@ -1112,6 +1119,7 @@
         el.appendChild(handleSE);
       }
 
+      // クリック、ダブルクリック、ドラッグ開始
       el.addEventListener("mousedown", (e) => {
         if (currentTool) return;
         if (e.target.classList.contains("handle")) return;
@@ -1155,7 +1163,7 @@
     document.getElementById("deleteBtn").disabled = !selectedItemId;
   }
 
-  // --- 直線描画処理 ---
+  // --- 直線描画処理（両端ハンドルのみ） ---
   function renderLineItem(item) {
     const isSelected = (item.id === selectedItemId);
     const lWidth = item.lineWidth || (4 * currentScale);
@@ -1163,13 +1171,13 @@
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     if (isSelected) g.classList.add("line-selected");
 
-    if (isSelected) {
-      const pad = 10 * currentScale;
-      const minX = Math.min(item.x1, item.x2) - pad;
-      const minY = Math.min(item.y1, item.y2) - pad;
-      const boxW = Math.max(20, Math.abs(item.x2 - item.x1) + pad * 2);
-      const boxH = Math.max(20, Math.abs(item.y2 - item.y1) + pad * 2);
+    const pad = 8 * currentScale;
+    const minX = Math.min(item.x1, item.x2) - pad;
+    const minY = Math.min(item.y1, item.y2) - pad;
+    const boxW = Math.max(16 * currentScale, Math.abs(item.x2 - item.x1) + pad * 2);
+    const boxH = Math.max(16 * currentScale, Math.abs(item.y2 - item.y1) + pad * 2);
 
+    if (isSelected) {
       const selectionBox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
       selectionBox.setAttribute("x", minX);
       selectionBox.setAttribute("y", minY);
@@ -1238,10 +1246,12 @@
     lineSvgLayer.appendChild(g);
 
     if (isSelected) {
+      // 🌟 直線の始点・終点丸ハンドルのみ配置
       const h1 = document.createElement("div");
       h1.className = "line-handle";
       h1.style.left = `${item.x1}px`;
       h1.style.top = `${item.y1}px`;
+      h1.title = "端点の位置を調整（Shiftで水平・垂直）";
       h1.addEventListener("mousedown", (e) => startLinePointDrag(e, item, 1));
       stageContainer.appendChild(h1);
 
@@ -1249,6 +1259,7 @@
       h2.className = "line-handle";
       h2.style.left = `${item.x2}px`;
       h2.style.top = `${item.y2}px`;
+      h2.title = "端点の位置を調整（Shiftで水平・垂直）";
       h2.addEventListener("mousedown", (e) => startLinePointDrag(e, item, 2));
       stageContainer.appendChild(h2);
     }
@@ -1408,7 +1419,7 @@
       }
     }
 
-    function onMouseUp(ev) {
+    function onMouseUp() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
 
@@ -1426,7 +1437,7 @@
     document.addEventListener("mouseup", onMouseUp);
   }
 
-  // リサイズ操作
+  // リサイズ操作（四角・矢印・文字）
   function startResize(e, item) {
     e.stopPropagation();
     let startX = e.clientX;
